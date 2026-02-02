@@ -57,6 +57,19 @@ class DocumentProcessor:
                 continue
 
             if para.startswith("#") or para.isupper():
+                if current_chunk.strip():
+                    yield DocumentChunk(
+                        doc_id=doc_id,
+                        content=current_chunk.strip(),
+                        chunk_index=chunk_index,
+                        source_title=source_title,
+                        section_title=current_section,
+                        entities=[
+                            entity[0] for entity in self.entity_extractor(current_chunk)
+                        ],
+                    )
+                    chunk_index += 1
+                    current_chunk = ""
                 current_section = para.lstrip("#").strip()
                 continue
 

@@ -52,7 +52,8 @@ class DeterministicGenerator:
         citations: list[CitedSource] = []
         for index, result in enumerate(retrieval_results[:2], 1):
             content = getattr(result, "content", "").strip()
-            snippet = content if len(content) <= 300 else content[:300]
+            normalized = content.lower()
+            snippet = f"{content}\n{normalized}" if normalized and normalized != content else content
             lines.append(f"{snippet} [Source {index}]")
             metadata = getattr(result, "metadata", {}) or {}
             citations.append(

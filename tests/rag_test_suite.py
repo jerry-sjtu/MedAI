@@ -256,8 +256,14 @@ def verify_citation_accuracy(response: GroundedResponse, workspace: KnowledgeWor
         "details": [],
     }
 
+    def get_chunks(ids: List[str]) -> dict:
+        vector_store = workspace.vector_store
+        if hasattr(vector_store, "get"):
+            return vector_store.get(ids=ids)
+        return vector_store.collection.get(ids=ids)
+
     for cite in response.citations:
-        exists = workspace.vector_store.collection.get(ids=[cite.chunk_id])
+        exists = get_chunks([cite.chunk_id])
         if not exists.get("ids"):
             results["all_citations_exist"] = False
             results["details"].append(f"Citation {cite.chunk_id} not found")
@@ -274,19 +280,23 @@ def verify_citation_accuracy(response: GroundedResponse, workspace: KnowledgeWor
 
 
 def verify_chunk_exists(chunk_id: str, workspace: KnowledgeWorkspace) -> bool:
-    return bool(workspace.vector_store.collection.get(ids=[chunk_id]).get("ids"))
+    vector_store = workspace.vector_store
+    if hasattr(vector_store, "get"):
+        return bool(vector_store.get(ids=[chunk_id]).get("ids"))
+    return bool(vector_store.collection.get(ids=[chunk_id]).get("ids"))
 
 
 def evaluate_hallucination(test_cases: Iterable[dict], workspace: KnowledgeWorkspace) -> dict:
     """评估幻觉抑制能力"""
     results = {"refusal_rate": 0, "hallucination_rate": 0, "false_citation_rate": 0}
 
+    cases = list(test_cases)
     refused = 0
     hallucinated = 0
     false_citations = 0
     total_citations = 0
 
-    for case in test_cases:
+    for case in cases:
         response = workspace.query(case["question"])
         refusal_phrases = ["无法回答", "没有相关信息", "资料中未提及", "cannot answer", "no relevant information"]
         is_refused = any(phrase in response.answer for phrase in refusal_phrases)
@@ -304,7 +314,7 @@ def evaluate_hallucination(test_cases: Iterable[dict], workspace: KnowledgeWorks
             if not verify_chunk_exists(cite.chunk_id, workspace):
                 false_citations += 1
 
-    n = len(list(test_cases))
+    n = len(cases)
     results["refusal_rate"] = refused / n if n else 0
     results["hallucination_rate"] = hallucinated / n if n else 0
     results["false_citation_rate"] = false_citations / total_citations if total_citations else 0

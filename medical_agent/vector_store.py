@@ -91,6 +91,10 @@ class VectorStore:
 
         return output
 
+    def get(self, ids: list[str]) -> dict:
+        """获取指定chunk."""
+        return self.collection.get(ids=ids)
+
     def delete_document(self, doc_id: str) -> None:
         """删除文档的所有块."""
         self.collection.delete(where={"doc_id": doc_id})

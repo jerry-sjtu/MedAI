@@ -8,7 +8,7 @@ This repository contains a lightweight, controlled test suite for evaluating med
 2. Add the provided documents and run the tests.
 
 ```python
-from rag_test_suite import RAGTestSuite
+from tests.rag_test_suite import RAGTestSuite
 
 workspace = KnowledgeWorkspace(
     persist_dir="./test_kb",
@@ -27,4 +27,4 @@ print(report)
 - Test cases for retrieval, cross-document reasoning, hallucination detection, citation accuracy, and boundary conditions.
 - Evaluation utilities such as retrieval metrics and LLM-as-judge scaffolding.
 
-See `rag_test_suite.py` for the full implementation and configuration.
+See `tests/rag_test_suite.py` for the full implementation and configuration.

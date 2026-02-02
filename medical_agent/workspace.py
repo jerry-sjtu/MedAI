@@ -7,7 +7,7 @@ from .generator import GroundedGenerator
 from .knowledge_graph import KnowledgeGraph
 from .processor import DocumentProcessor
 from .retriever import HybridRetriever
-from .vector_store import VectorStore
+from .vector_store import InMemoryVectorStore, VectorStore
 
 
 class KnowledgeWorkspace:
@@ -17,15 +17,23 @@ class KnowledgeWorkspace:
         self,
         persist_dir: str = "./knowledge_base",
         llm_client=None,
-        vector_store: VectorStore | None = None,
+        vector_store: VectorStore | InMemoryVectorStore | None = None,
         knowledge_graph: KnowledgeGraph | None = None,
         retriever: HybridRetriever | None = None,
         generator: GroundedGenerator | None = None,
         processor: DocumentProcessor | None = None,
+        vector_store_backend: str = "chroma",
     ) -> None:
         self.persist_dir = persist_dir
 
-        self.vector_store = vector_store or VectorStore(persist_dir=f"{persist_dir}/chroma")
+        if vector_store is not None:
+            self.vector_store = vector_store
+        elif vector_store_backend == "in_memory":
+            self.vector_store = InMemoryVectorStore()
+        elif vector_store_backend == "chroma":
+            self.vector_store = VectorStore(persist_dir=f"{persist_dir}/chroma")
+        else:
+            raise ValueError(f"Unsupported vector_store_backend: {vector_store_backend}")
         self.knowledge_graph = knowledge_graph or KnowledgeGraph()
         self.retriever = retriever or HybridRetriever(self.vector_store, self.knowledge_graph)
         self.generator = generator or GroundedGenerator(llm_client)

@@ -23,6 +23,7 @@ class KnowledgeWorkspace:
         generator: GroundedGenerator | None = None,
         processor: DocumentProcessor | None = None,
         vector_store_backend: str = "chroma",
+        entity_extractor=None,
     ) -> None:
         self.persist_dir = persist_dir
 
@@ -40,6 +41,7 @@ class KnowledgeWorkspace:
         self.processor = processor or DocumentProcessor(
             knowledge_graph=self.knowledge_graph,
             vector_store=self.vector_store,
+            entity_extractor=entity_extractor,
         )
 
         self.active_doc_ids: set[str] = set()

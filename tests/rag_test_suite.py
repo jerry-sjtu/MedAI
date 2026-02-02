@@ -4,70 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import re
 from typing import Iterable, List, Protocol
 
 from medical_agent import (
     CitedSource,
-    DocumentChunk,
-    DocumentProcessor,
     GroundedResponse,
-    HybridRetriever,
-    KnowledgeGraph,
     KnowledgeWorkspace as MedicalKnowledgeWorkspace,
 )
-
-
-def _tokenize(text: str) -> set[str]:
-    return {token for token in re.findall(r"\w+", text.lower()) if token}
-
-
-class InMemoryVectorStore:
-    """In-memory vector store for lightweight test runs."""
-
-    def __init__(self) -> None:
-        self._chunks: dict[str, DocumentChunk] = {}
-
-    def add_chunks(self, chunks: list[DocumentChunk]) -> None:
-        for chunk in chunks:
-            self._chunks[chunk.chunk_id] = chunk
-
-    def search(
-        self,
-        query: str,
-        n_results: int = 10,
-        filter_doc_ids: list[str] | None = None,
-    ) -> list[tuple[str, float, dict]]:
-        query_tokens = _tokenize(query)
-        results: list[tuple[str, float, dict]] = []
-
-        for chunk in self._chunks.values():
-            if filter_doc_ids and chunk.doc_id not in filter_doc_ids:
-                continue
-            content_tokens = _tokenize(chunk.content)
-            overlap = len(query_tokens & content_tokens)
-            score = overlap / max(len(query_tokens), 1)
-            metadata = {
-                "doc_id": chunk.doc_id,
-                "source_title": chunk.source_title,
-                "section_title": chunk.section_title,
-                "chunk_index": chunk.chunk_index,
-                "page_number": chunk.page_number or -1,
-                "content": chunk.content,
-            }
-            results.append((chunk.chunk_id, score, metadata))
-
-        results.sort(key=lambda item: item[1], reverse=True)
-        return results[:n_results]
-
-    def get(self, ids: list[str]) -> dict:
-        found = [chunk_id for chunk_id in ids if chunk_id in self._chunks]
-        return {"ids": found}
-
-    def delete_document(self, doc_id: str) -> None:
-        for chunk_id, chunk in list(self._chunks.items()):
-            if chunk.doc_id == doc_id:
-                del self._chunks[chunk_id]
 
 
 class DeterministicGenerator:
@@ -134,18 +77,11 @@ class DeterministicGenerator:
 
 def build_medical_agent_workspace(persist_dir: str = "./test_kb") -> MedicalKnowledgeWorkspace:
     """构造使用 medical_agent 组件的测试工作空间."""
-    vector_store = InMemoryVectorStore()
-    knowledge_graph = KnowledgeGraph()
-    retriever = HybridRetriever(vector_store, knowledge_graph)
-    processor = DocumentProcessor(knowledge_graph=knowledge_graph, vector_store=vector_store)
     generator = DeterministicGenerator()
     return MedicalKnowledgeWorkspace(
         persist_dir=persist_dir,
-        vector_store=vector_store,
-        knowledge_graph=knowledge_graph,
-        retriever=retriever,
-        processor=processor,
         generator=generator,
+        vector_store_backend="in_memory",
     )
 
 

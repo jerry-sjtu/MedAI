@@ -17,12 +17,13 @@ class DocumentProcessor:
         chunk_overlap: int = 50,
         knowledge_graph: KnowledgeGraph | None = None,
         vector_store: VectorStore | None = None,
+        entity_extractor=None,
     ) -> None:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.kg = knowledge_graph
         self.vector_store = vector_store
-        self.entity_extractor = self._get_entity_extractor()
+        self.entity_extractor = entity_extractor or self._get_entity_extractor()
 
     def _get_entity_extractor(self):
         """获取医学实体抽取器（可替换为专业NER模型）."""

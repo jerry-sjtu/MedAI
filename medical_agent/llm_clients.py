@@ -23,6 +23,11 @@ class BaseLLMClient:
         raise NotImplementedError
 
 
+class BaseEmbeddingClient:
+    def embed(self, texts: list[str]) -> list[list[float]]:  # pragma: no cover - interface
+        raise NotImplementedError
+
+
 class OpenRouterClient(BaseLLMClient):
     def __init__(self, config: LLMConfig, timeout_s: int = 60) -> None:
         self.config = config
@@ -47,6 +52,29 @@ class OpenRouterClient(BaseLLMClient):
         return response["choices"][0]["message"]["content"]
 
 
+class OpenRouterEmbeddingClient(BaseEmbeddingClient):
+    def __init__(self, config: LLMConfig, timeout_s: int = 60) -> None:
+        self.config = config
+        self.timeout_s = timeout_s
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        payload = {
+            "model": self.config.model,
+            "input": texts,
+        }
+        response = _post_json(
+            url=f"{self.config.base_url}/embeddings",
+            api_key=self.config.api_key,
+            payload=payload,
+            timeout_s=self.timeout_s,
+            extra_headers={
+                "HTTP-Referer": self.config.app_url,
+                "X-Title": self.config.app_name,
+            },
+        )
+        return [item["embedding"] for item in response["data"]]
+
+
 def build_llm_client(
     model: str,
     env_path: str = ".env",
@@ -67,6 +95,28 @@ def build_llm_client(
         app_url=app_url,
     )
     return OpenRouterClient(config)
+
+
+def build_embedding_client(
+    model: str,
+    env_path: str = ".env",
+    base_url: str | None = None,
+    app_name: str = "MedAI",
+    app_url: str = "https://example.com",
+) -> BaseEmbeddingClient:
+    load_dotenv(env_path)
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise ValueError("Missing API key: OPENROUTER_API_KEY")
+
+    config = LLMConfig(
+        model=model,
+        api_key=api_key,
+        base_url=base_url or "https://openrouter.ai/api/v1",
+        app_name=app_name,
+        app_url=app_url,
+    )
+    return OpenRouterEmbeddingClient(config)
 
 
 def _post_json(

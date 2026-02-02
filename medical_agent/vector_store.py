@@ -3,15 +3,66 @@ from __future__ import annotations
 import re
 from typing import Callable, Optional
 
-import chromadb
-from chromadb.config import Settings
 
 from .models import DocumentChunk
 from .llm_clients import build_embedding_client
 
 
+_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "can",
+    "could",
+    "did",
+    "do",
+    "does",
+    "for",
+    "from",
+    "had",
+    "has",
+    "have",
+    "how",
+    "in",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "or",
+    "should",
+    "that",
+    "the",
+    "these",
+    "this",
+    "to",
+    "was",
+    "were",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "will",
+    "with",
+    "without",
+    "would",
+    "you",
+    "your",
+}
+
+
 def _tokenize(text: str) -> set[str]:
-    return {token for token in re.findall(r"\w+", text.lower()) if token}
+    return {
+        token
+        for token in re.findall(r"\w+", text.lower())
+        if token and token not in _STOPWORDS
+    }
 
 
 class InMemoryVectorStore:
@@ -37,8 +88,13 @@ class InMemoryVectorStore:
             if filter_doc_ids and chunk.doc_id not in filter_doc_ids:
                 continue
             content_tokens = _tokenize(chunk.content)
-            overlap = len(query_tokens & content_tokens)
-            score = overlap / max(len(query_tokens), 1)
+            section_tokens = _tokenize(f"{chunk.section_title} {chunk.source_title}")
+            overlap_content = len(query_tokens & content_tokens)
+            overlap_section = len(query_tokens & section_tokens)
+            score = (overlap_content + (2 * overlap_section)) / max(
+                len(query_tokens),
+                1,
+            )
             metadata = {
                 "doc_id": chunk.doc_id,
                 "source_title": chunk.source_title,
@@ -76,6 +132,9 @@ class VectorStore:
         app_name: str = "MedAI",
         app_url: str = "https://example.com",
     ) -> None:
+        import chromadb
+        from chromadb.config import Settings
+
         self.client = chromadb.Client(
             Settings(
                 persist_directory=persist_dir,

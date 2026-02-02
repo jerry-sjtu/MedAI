@@ -21,6 +21,14 @@ class HybridRetriever:
         self.vector_store = vector_store
         self.kg = knowledge_graph
 
+    def _context_sort_key(self, context_id: str, current_index: int) -> tuple[int, int]:
+        node_data = self.kg.get_node(context_id) or {}
+        context_index = node_data.get("chunk_index")
+        if context_index is None:
+            return (1, 0)
+        prefer_forward = 0 if context_index > current_index else 1
+        return (prefer_forward, abs(context_index - current_index))
+
     def retrieve(
         self,
         query: str,
@@ -36,20 +44,14 @@ class HybridRetriever:
             filter_doc_ids=doc_ids,
         )
 
+        if not vector_results:
+            return []
+
+        max_score = max(result[1] for result in vector_results)
+        if max_score <= 0.05:
+            return []
+
         candidate_chunk_ids = [result[0] for result in vector_results[:top_k]]
-
-        expanded_chunks: set[str] = set()
-        if expand_context:
-            for chunk_id in candidate_chunk_ids:
-                context = self.kg.get_context_window(chunk_id, window_size=context_window)
-                expanded_chunks.update(context)
-
-            related = self.kg.get_related_chunks(
-                candidate_chunk_ids,
-                max_hops=2,
-                max_results=5,
-            )
-            expanded_chunks.update(related)
 
         results: list[RetrievalResult] = []
         seen_ids: set[str] = set()
@@ -67,23 +69,61 @@ class HybridRetriever:
                 )
                 seen_ids.add(chunk_id)
 
-        for chunk_id in expanded_chunks:
-            if chunk_id in seen_ids:
-                continue
-            node_data = self.kg.get_node(chunk_id) or {}
-            if node_data:
-                results.append(
-                    RetrievalResult(
-                        chunk_id=chunk_id,
-                        content=node_data.get("content", ""),
-                        score=0.5,
-                        metadata={
-                            "doc_id": node_data.get("doc_id"),
-                            "chunk_index": node_data.get("chunk_index"),
-                        },
-                        retrieval_method="graph",
-                    )
+            if expand_context:
+                context_chunks = self.kg.get_context_window(
+                    chunk_id,
+                    window_size=context_window,
                 )
-                seen_ids.add(chunk_id)
+                current_index = metadata.get("chunk_index")
+                if current_index is not None:
+                    context_chunks = sorted(
+                        context_chunks,
+                        key=lambda context_id: (
+                            self._context_sort_key(context_id, current_index)
+                        ),
+                    )
+                for context_id in context_chunks:
+                    if context_id in seen_ids:
+                        continue
+                    node_data = self.kg.get_node(context_id) or {}
+                    if node_data:
+                        results.append(
+                            RetrievalResult(
+                                chunk_id=context_id,
+                                content=node_data.get("content", ""),
+                                score=score * 0.9,
+                                metadata={
+                                    "doc_id": node_data.get("doc_id"),
+                                    "chunk_index": node_data.get("chunk_index"),
+                                },
+                                retrieval_method="graph",
+                            )
+                        )
+                        seen_ids.add(context_id)
+
+        if expand_context:
+            related_chunks = self.kg.get_related_chunks(
+                candidate_chunk_ids,
+                max_hops=2,
+                max_results=5,
+            )
+            for chunk_id in related_chunks:
+                if chunk_id in seen_ids:
+                    continue
+                node_data = self.kg.get_node(chunk_id) or {}
+                if node_data:
+                    results.append(
+                        RetrievalResult(
+                            chunk_id=chunk_id,
+                            content=node_data.get("content", ""),
+                            score=0.5,
+                            metadata={
+                                "doc_id": node_data.get("doc_id"),
+                                "chunk_index": node_data.get("chunk_index"),
+                            },
+                            retrieval_method="graph",
+                        )
+                    )
+                    seen_ids.add(chunk_id)
 
         return results

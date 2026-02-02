@@ -240,7 +240,8 @@ class KnowledgeGraph:
 ```python
 import chromadb
 from chromadb.config import Settings
-import hashlib
+
+from medical_agent.llm_clients import build_embedding_client
 
 class VectorStore:
     """基于Chroma的向量存储"""
@@ -258,13 +259,17 @@ class VectorStore:
             name=collection_name,
             metadata={"hnsw:space": "cosine"}
         )
-        self.embedding_fn = self._get_embedding_fn()
+        self.embedding_fn = self._build_embedding_fn()
     
-    def _get_embedding_fn(self):
-        """获取嵌入函数 - 可替换为其他模型"""
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer('BAAI/bge-m3')  # 支持中文
-        return lambda texts: model.encode(texts).tolist()
+    def _build_embedding_fn(self):
+        """通过OpenRouter获取嵌入函数"""
+        client = build_embedding_client(
+            model="text-embedding-3-large",
+            env_path=".env",
+            app_name="MedAI",
+            app_url="https://example.com",
+        )
+        return client.embed
     
     def add_chunks(self, chunks: list[DocumentChunk]):
         """批量添加文档块"""

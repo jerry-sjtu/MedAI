@@ -7,6 +7,7 @@ import chromadb
 from chromadb.config import Settings
 
 from .models import DocumentChunk
+from .llm_clients import build_embedding_client
 
 
 def _tokenize(text: str) -> set[str]:
@@ -69,6 +70,11 @@ class VectorStore:
         persist_dir: str = "./chroma_db",
         collection_name: str = "medical_knowledge",
         embedding_fn: Optional[Callable[[list[str]], list[list[float]]]] = None,
+        embedding_model: str = "text-embedding-3-large",
+        env_path: str = ".env",
+        base_url: str | None = None,
+        app_name: str = "MedAI",
+        app_url: str = "https://example.com",
     ) -> None:
         self.client = chromadb.Client(
             Settings(
@@ -80,14 +86,31 @@ class VectorStore:
             name=collection_name,
             metadata={"hnsw:space": "cosine"},
         )
-        self.embedding_fn = embedding_fn or self._get_embedding_fn()
+        self.embedding_fn = embedding_fn or self._build_embedding_fn(
+            embedding_model=embedding_model,
+            env_path=env_path,
+            base_url=base_url,
+            app_name=app_name,
+            app_url=app_url,
+        )
 
-    def _get_embedding_fn(self) -> Callable[[list[str]], list[list[float]]]:
-        """获取嵌入函数 - 可替换为其他模型."""
-        from sentence_transformers import SentenceTransformer
-
-        model = SentenceTransformer("BAAI/bge-m3")
-        return lambda texts: model.encode(texts).tolist()
+    def _build_embedding_fn(
+        self,
+        embedding_model: str,
+        env_path: str,
+        base_url: str | None,
+        app_name: str,
+        app_url: str,
+    ) -> Callable[[list[str]], list[list[float]]]:
+        """通过OpenRouter获取嵌入函数."""
+        client = build_embedding_client(
+            model=embedding_model,
+            env_path=env_path,
+            base_url=base_url,
+            app_name=app_name,
+            app_url=app_url,
+        )
+        return client.embed
 
     def add_chunks(self, chunks: list[DocumentChunk]) -> None:
         """批量添加文档块."""

@@ -13,14 +13,23 @@ from .vector_store import VectorStore
 class KnowledgeWorkspace:
     """知识工作空间 - 统一入口."""
 
-    def __init__(self, persist_dir: str = "./knowledge_base", llm_client=None) -> None:
+    def __init__(
+        self,
+        persist_dir: str = "./knowledge_base",
+        llm_client=None,
+        vector_store: VectorStore | None = None,
+        knowledge_graph: KnowledgeGraph | None = None,
+        retriever: HybridRetriever | None = None,
+        generator: GroundedGenerator | None = None,
+        processor: DocumentProcessor | None = None,
+    ) -> None:
         self.persist_dir = persist_dir
 
-        self.vector_store = VectorStore(persist_dir=f"{persist_dir}/chroma")
-        self.knowledge_graph = KnowledgeGraph()
-        self.retriever = HybridRetriever(self.vector_store, self.knowledge_graph)
-        self.generator = GroundedGenerator(llm_client)
-        self.processor = DocumentProcessor(
+        self.vector_store = vector_store or VectorStore(persist_dir=f"{persist_dir}/chroma")
+        self.knowledge_graph = knowledge_graph or KnowledgeGraph()
+        self.retriever = retriever or HybridRetriever(self.vector_store, self.knowledge_graph)
+        self.generator = generator or GroundedGenerator(llm_client)
+        self.processor = processor or DocumentProcessor(
             knowledge_graph=self.knowledge_graph,
             vector_store=self.vector_store,
         )
